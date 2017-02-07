@@ -4,6 +4,7 @@ package config
   * Created by Mihai.Petrutiu on 1/31/2017.
   */
 import com.typesafe.config.ConfigFactory
+import org.apache.spark.streaming.Seconds
 object Settings {
   private val config = ConfigFactory.load()
 
@@ -15,6 +16,35 @@ object Settings {
     lazy val pages = webLogGen.getInt("pages")
     lazy val visitors = webLogGen.getInt("visitors")
     lazy val filePath = webLogGen.getString("file_path")
-    lazy val isDebug = webLogGen.getBoolean("is_debug")
+    lazy val destinationPath = webLogGen.getString("dest_path")
+    lazy val numberOfFiles = webLogGen.getInt("number_of_files")
   }
+
+  object BatchJob {
+    private val batchJob = config.getConfig("batchJob")
+
+    lazy val isDebug = batchJob.getBoolean("is_debug")
+
+    val sparkAppName = batchJob.getString("spark_app_name")
+    val batchDuration = Seconds(batchJob.getInt("batch_duration_in_seconds"))
+    var checkpointDirectory = ""
+    var hadoopHomeDir = ""
+    var sparkMaster = ""
+    var filePath = ""
+    var destinationPath = ""
+    if (isDebug) {
+      val debugConfig = batchJob.getConfig("debug")
+      hadoopHomeDir = debugConfig.getString("hadoop_home_dir")
+      checkpointDirectory = debugConfig.getString("checkpoint_directory")
+      sparkMaster = debugConfig.getString("spark_master")
+      filePath = WebLogGen.filePath
+      destinationPath = WebLogGen.destinationPath
+    } else {
+      val releaseConfig = batchJob.getConfig("release")
+      checkpointDirectory = releaseConfig.getString("checkpointDirectory")
+      filePath = releaseConfig.getString("file_path")
+      destinationPath = releaseConfig.getString("dest_path")
+    }
+  }
+
 }

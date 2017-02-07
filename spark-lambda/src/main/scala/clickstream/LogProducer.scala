@@ -3,6 +3,7 @@ package clickstream
 import java.io.FileWriter
 
 import config.Settings
+import org.apache.commons.io.FileUtils
 
 import scala.io.Source
 import scala.util.Random
@@ -20,45 +21,53 @@ object LogProducer extends App {
 
   val rand = new Random()
   val filePath = webLog.filePath
+  val destPath = webLog.destinationPath
+  for (fileCount <- 1 to webLog.numberOfFiles) {
 
-  val fileWriter = new FileWriter(filePath, true)
+    val fileWriter = new FileWriter(filePath, true)
 
-  val incrementTimeEvery = rand.nextInt(webLog.records - 1) + 1
+    val incrementTimeEvery = rand.nextInt(webLog.records - 1) + 1
 
-  var timestamp = System.currentTimeMillis()
-  var adjustedTimestamp = timestamp
+    var timestamp = System.currentTimeMillis()
+    var adjustedTimestamp = timestamp
 
-  for (iteration <- 1 to webLog.records) {
-    adjustedTimestamp = adjustedTimestamp + ((System.currentTimeMillis() - timestamp) * webLog.timeMultiplier)
-    timestamp = System.currentTimeMillis()
-    val action = iteration % (rand.nextInt(200) + 1) match {
-      case 0 => "purchase"
-      case 1 => "add_to_cart"
-      case _ => "page_view"
+    for (iteration <- 1 to webLog.records) {
+      adjustedTimestamp = adjustedTimestamp + ((System.currentTimeMillis() - timestamp) * webLog.timeMultiplier)
+      timestamp = System.currentTimeMillis()
+      val action = iteration % (rand.nextInt(200) + 1) match {
+        case 0 => "purchase"
+        case 1 => "add_to_cart"
+        case _ => "page_view"
+      }
+      val referrer = getRandomItem(referrers)
+
+      val prevPage = referrer match {
+        case "Internal" => getRandomItem(pages)
+        case _ => ""
+      }
+
+      val visitor = getRandomItem(visitors)
+      val page = getRandomItem(pages)
+      val product = getRandomItem(products)
+
+      val line = s"$adjustedTimestamp\t$referrer\t$action\t$prevPage\t$visitor\t$page\t$product\n"
+      fileWriter.write(line)
+
+      if (iteration % incrementTimeEvery == 0) {
+        println(s"Sent $iteration messages!")
+        val sleeping = rand.nextInt(incrementTimeEvery * 60)
+        println(s"Sleeping for $sleeping ms")
+        Thread sleep sleeping
+      }
     }
-    val referrer = getRandomItem(referrers)
 
-    val prevPage = referrer match {
-      case "Internal" => getRandomItem(pages)
-      case _ => ""
-    }
-
-    val visitor = getRandomItem(visitors)
-    val page = getRandomItem(pages)
-    val product = getRandomItem(products)
-
-    val line = s"$adjustedTimestamp\t$referrer\t$action\t$prevPage\t$visitor\t$page\t$product\n"
-    fileWriter.write(line)
-
-    if (iteration % incrementTimeEvery == 0) {
-      println(s"Sent $iteration messages!")
-      val sleeping = rand.nextInt(incrementTimeEvery * 60)
-      println(s"Sleeping for $sleeping ms")
-      Thread sleep sleeping
-    }
+    fileWriter.close()
+    val outputFile = FileUtils.getFile(s"${destPath}data_$timestamp")
+    println(s"Moving produced data to $outputFile")
+    FileUtils.moveFile(FileUtils.getFile(filePath), outputFile)
+    val sleeping = 5000
+    println(s"sleeping for $sleeping ms")
   }
-
-  fileWriter.close()
 
 
   def readResourceFileLineByLine(resource: String): Array[String] = {

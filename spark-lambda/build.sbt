@@ -77,3 +77,5 @@ libraryDependencies += "org.apache.spark" % "spark-hive_2.11" % sparkVersion % p
 libraryDependencies += "joda-time" % "joda-time" % "2.8.1"
 
 libraryDependencies += "org.joda" % "joda-convert" % "1.7"
+
+libraryDependencies += "commons-io" % "commons-io" % "2.4"

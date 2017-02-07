@@ -15,16 +15,18 @@ object BatchJobV1 {
 
     println("start")
     val y =util.Properties.versionString
-    val x = Settings.WebLogGen.records
+    val x = Settings.BatchJob.isDebug
+
     //get spark configuration
     val conf = new SparkConf()
-      .setAppName("Lambda with Spark")
+      .setAppName(Settings.BatchJob.sparkAppName)
 
     //If we are running from IDE
-    if(Settings.WebLogGen.isDebug) {
+    if(Settings.BatchJob.isDebug) {
+
       println("debug run")
-      System.setProperty("hadoop.home.dir", "E:\\Scala\\WinUtils\\hadoop-common-2.2.0-bin-master")
-      conf.setMaster("local[*]")
+      System.setProperty("hadoop.home.dir", Settings.BatchJob.hadoopHomeDir)
+      conf.setMaster(Settings.BatchJob.sparkMaster)
     }
 
     //setup spark context

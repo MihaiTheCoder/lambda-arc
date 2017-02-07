@@ -7,27 +7,16 @@ import org.apache.spark.{SparkConf, SparkContext}
 import domain._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{SQLContext, SaveMode}
+import utils.SparkUtils
 /**
   * Created by Mihai.Petrutiu on 1/31/2017.
   */
 object BatchJob {
-  val tsvFile = "file:///vagrant/data.tsv"
+  val tsvFile = Settings.BatchJob.filePath
   def main(args: Array[String]): Unit = {
 
-
-    //get spark configuration
-    val conf = new SparkConf()
-      .setAppName("Lambda with Spark")
-
-    //If we are running from IDE
-    if(Settings.WebLogGen.isDebug) {
-      System.setProperty("hadoop.home.dir", "E:\\Scala\\WinUtils\\hadoop-common-2.2.0-bin-master")
-      conf.setMaster("local[*]")
-    }
-
-    //setup spark context
-    val sc = new SparkContext(conf)
-
+    val sc = SparkUtils.getSparkContext(Settings.BatchJob.sparkAppName)
+    val sqlContext = SparkUtils.getSQLContext(sc)
     //initialize input RDD
     val sourceFile = tsvFile
     val input = sc.textFile(sourceFile)
