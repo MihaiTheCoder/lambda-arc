@@ -1,3 +1,5 @@
+import org.apache.spark.sql.Row
+
 /**
   * Created by Mihai.Petrutiu on 1/31/2017.
   */
@@ -10,6 +12,12 @@ package object domain {
                       visitor: String,
                       product: String,
                       inputProps: Map[String, String]= Map())
+
+  case class ActivityByProduct (product: String,
+                                timestamp_hour: Long,
+                                purchase_count: Long,
+                                add_to_cart_count: Long,
+                                page_view_count: Long)
 
   object ActivityFactory {
 
@@ -24,5 +32,12 @@ package object domain {
         return None
       }
     }
+  }
+
+  object ActivityByProductFactory {
+    def getActivityByProduct(row: Row) : ActivityByProduct = {
+      ActivityByProduct(row.getString(0), row.getLong(1), row.getLong(2), row.getLong(3), row.getLong(4))
+    }
+
   }
 }
