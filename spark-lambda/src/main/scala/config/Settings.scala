@@ -27,6 +27,7 @@ object Settings {
 
     val sparkAppName = batchJob.getString("spark_app_name")
     val batchDuration = Seconds(batchJob.getInt("batch_duration_in_seconds"))
+
     var checkpointDirectory = ""
     var hadoopHomeDir = ""
     var sparkMaster = ""

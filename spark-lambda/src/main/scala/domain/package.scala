@@ -19,6 +19,8 @@ package object domain {
                                 add_to_cart_count: Long,
                                 page_view_count: Long)
 
+  case class VisitorByProduct(product: String, timestamp_hour: Long, unique_visitors: Long)
+
   object ActivityFactory {
 
     private val MS_IN_HOUR = 1000*60*60
