@@ -37,16 +37,17 @@ object StreamingJob {
       "auto.offset.reset" -> "largest"
     )
 
+    val kafkaDirectPrams = Map(
+      "metadata.broker.list" -> Settings.WebLogGen.bootstrapServersConfig,
+      "group.id"  -> Settings.BatchJob.sparkGroupId,
+      "auto.offset.reset" -> "smallest"
+    )
 
-    val kafkaStream = KafkaUtils.createStream[String, String, StringDecoder, StringDecoder](
-      ssc, kafkaParams, Map(Settings.WebLogGen.topic -> 1), StorageLevel.MEMORY_AND_DISK).map(_._2)
+    val kafkaDirectStream = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](
+      ssc, kafkaDirectPrams, Set(Settings.WebLogGen.topic)
+    ).map(_._2)
 
-    val activityStream = kafkaStream.transform(input => input.flatMap(line => ActivityFactory.getActivity(line))).cache()
-
-
-    //val textDStream = ssc.textFileStream(Settings.BatchJob.destinationPath)
-
-    //val activityStream = textDStream.transform(input => input.flatMap(line => ActivityFactory.getActivity(line))).cache()
+    val activityStream = kafkaDirectStream.transform(input => input.flatMap(line => ActivityFactory.getActivity(line))).cache()
 
     val activityStateSpec = StateSpec
       .function(mapActivityStateFunc)
