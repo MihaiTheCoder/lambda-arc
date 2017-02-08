@@ -18,6 +18,8 @@ object Settings {
     lazy val filePath = webLogGen.getString("file_path")
     lazy val destinationPath = webLogGen.getString("dest_path")
     lazy val numberOfFiles = webLogGen.getInt("number_of_files")
+    lazy val topic = webLogGen.getString("topic")
+    lazy val bootstrapServersConfig = webLogGen.getString("bootstrap_servers_config") //Seed config
   }
 
   object BatchJob {
@@ -27,6 +29,9 @@ object Settings {
 
     val sparkAppName = batchJob.getString("spark_app_name")
     val batchDuration = Seconds(batchJob.getInt("batch_duration_in_seconds"))
+
+    val sparkZookeeperConnect = batchJob.getString("spark_client.zookeeper_connect")
+    val sparkGroupId = batchJob.getString("spark_client.group_id")
 
     var checkpointDirectory = ""
     var hadoopHomeDir = ""

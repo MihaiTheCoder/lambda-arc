@@ -1,13 +1,17 @@
 package streaming
 
-import config.Settings
-import domain.{ActivityByProduct, ActivityByProductFactory, ActivityFactory, VisitorByProduct}
+import _root_.kafka.serializer.{DefaultDecoder, StringDecoder}
 import org.apache.spark.SparkContext
 import org.apache.spark.streaming._
-import utils.SparkUtils
-import org.apache.spark.sql.functions._
+import org.apache.spark.streaming.kafka.KafkaUtils
 import functions._
 import com.twitter.algebird.HyperLogLogMonoid
+import config.Settings
+import domain.{ActivityByProduct, ActivityByProductFactory, ActivityFactory, VisitorByProduct}
+import org.apache.spark.storage.StorageLevel
+import utils.SparkUtils
+
+
 /**
   * Created by Mihai.Petrutiu on 2/6/2017.
   */
@@ -26,9 +30,23 @@ object StreamingJob {
     val ssc = new StreamingContext(sc, batchDuration)
     val sqlContext = SparkUtils.getSQLContext(sc)
     import sqlContext.implicits._
-    val textDStream = ssc.textFileStream(Settings.BatchJob.destinationPath)
 
-    val activityStream = textDStream.transform(input => input.flatMap(line => ActivityFactory.getActivity(line))).cache()
+    val kafkaParams = Map(
+      "zookeeper.connect" -> Settings.BatchJob.sparkZookeeperConnect,
+      "group.id" -> Settings.BatchJob.sparkGroupId,
+      "auto.offset.reset" -> "largest"
+    )
+
+
+    val kafkaStream = KafkaUtils.createStream[String, String, StringDecoder, StringDecoder](
+      ssc, kafkaParams, Map(Settings.WebLogGen.topic -> 1), StorageLevel.MEMORY_AND_DISK).map(_._2)
+
+    val activityStream = kafkaStream.transform(input => input.flatMap(line => ActivityFactory.getActivity(line))).cache()
+
+
+    //val textDStream = ssc.textFileStream(Settings.BatchJob.destinationPath)
+
+    //val activityStream = textDStream.transform(input => input.flatMap(line => ActivityFactory.getActivity(line))).cache()
 
     val activityStateSpec = StateSpec
       .function(mapActivityStateFunc)
