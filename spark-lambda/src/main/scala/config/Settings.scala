@@ -29,6 +29,7 @@ object Settings {
 
     val sparkAppName = batchJob.getString("spark_app_name")
     val batchDuration = Seconds(batchJob.getInt("batch_duration_in_seconds"))
+    lazy val hadoop = batchJob.getString("hadoop")
 
     val sparkZookeeperConnect = batchJob.getString("spark_client.zookeeper_connect")
     val sparkGroupId = batchJob.getString("spark_client.group_id")

@@ -1,11 +1,24 @@
 import com.twitter.algebird.{HLL, HyperLogLogMonoid}
-import domain.ActivityByProduct
+import domain.{Activity, ActivityByProduct, ActivityFactory}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.State
+import org.apache.spark.streaming.kafka.HasOffsetRanges
 
 /**
   * Created by Mihai.Petrutiu on 2/7/2017.
   */
 package object functions {
+
+  def stringRDDtoActivityRDD(input: RDD[(String, String)]) : RDD[Activity] = {
+    val offsetRanges = input.asInstanceOf[HasOffsetRanges].offsetRanges // can be used with[only?] direct approach
+    input.mapPartitionsWithIndex({ (index, it) =>
+      val or = offsetRanges(index)
+      it.flatMap(kv => {
+        val line = kv._2
+        ActivityFactory.getActivity(line)
+      })
+    })
+  }
 
   def mapVisitorsStateFunc = (k: (String, Long), v: Option[HLL], state: State[HLL]) => {
     val currentVisitorHLL = state.getOption().getOrElse(new HyperLogLogMonoid(12).zero)

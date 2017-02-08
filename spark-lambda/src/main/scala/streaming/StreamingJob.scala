@@ -7,7 +7,8 @@ import org.apache.spark.streaming.kafka.KafkaUtils
 import functions._
 import com.twitter.algebird.HyperLogLogMonoid
 import config.Settings
-import domain.{ActivityByProduct, ActivityByProductFactory, ActivityFactory, VisitorByProduct}
+import domain._
+import org.apache.spark.sql.SaveMode
 import org.apache.spark.storage.StorageLevel
 import utils.SparkUtils
 
@@ -16,7 +17,8 @@ import utils.SparkUtils
   * Created by Mihai.Petrutiu on 2/6/2017.
   */
 object StreamingJob {
-  val batchDurationInSeconds = Settings.BatchJob.batchDuration.milliseconds/1000
+  val batchDurationInSeconds = Settings.BatchJob.batchDuration.milliseconds / 1000
+
   def main(args: Array[String]): Unit = {
     println(Settings.BatchJob.isDebug)
     val sc = SparkUtils.getSparkContext(Settings.BatchJob.sparkAppName)
@@ -39,15 +41,24 @@ object StreamingJob {
 
     val kafkaDirectPrams = Map(
       "metadata.broker.list" -> Settings.WebLogGen.bootstrapServersConfig,
-      "group.id"  -> Settings.BatchJob.sparkGroupId,
+      "group.id" -> Settings.BatchJob.sparkGroupId,
       "auto.offset.reset" -> "smallest"
     )
 
     val kafkaDirectStream = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](
       ssc, kafkaDirectPrams, Set(Settings.WebLogGen.topic)
-    ).map(_._2)
+    )
 
-    val activityStream = kafkaDirectStream.transform(input => input.flatMap(line => ActivityFactory.getActivity(line))).cache()
+    val activityStream = kafkaDirectStream.transform(input => stringRDDtoActivityRDD(input)).cache()
+
+    activityStream.foreachRDD(rdd => {
+      val activityDF = rdd.toDF().selectExpr(ActivityFactory.getActivityWithOffserRangeColumns: _*)
+      activityDF
+        .write
+        .partitionBy(Activity.topic, Activity.kafkaPartition, Activity.timestamp_hour)
+        .mode(SaveMode.Append)
+        .parquet(s"${Settings.BatchJob.hadoop}/webblogs-app1/")
+    })
 
     val activityStateSpec = StateSpec
       .function(mapActivityStateFunc)
@@ -75,7 +86,7 @@ object StreamingJob {
     activityStateSnapshot.reduceByKeyAndWindow(
       (a, b) => b,
       (x, y) => x,
-      Seconds(30 /batchDurationInSeconds * batchDurationInSeconds)
+      Seconds(30 / batchDurationInSeconds * batchDurationInSeconds)
     )
       .foreachRDD(rdd => rdd.map(sr => ActivityByProduct(sr._1._1, sr._1._2, sr._2._1, sr._2._2, sr._2._3))
         .toDF().registerTempTable("ActivityByProduct"))
@@ -95,14 +106,14 @@ object StreamingJob {
 
 
     visitorStateSnapshot
-        .reduceByKeyAndWindow(
-          (a, b) => b,
-          (x, y) => x,
-          Seconds(30 /batchDurationInSeconds * batchDurationInSeconds)
-        )// only save or expose the snapshot every x seconds - 28
+      .reduceByKeyAndWindow(
+        (a, b) => b,
+        (x, y) => x,
+        Seconds(30 / batchDurationInSeconds * batchDurationInSeconds)
+      ) // only save or expose the snapshot every x seconds - 28
       .foreachRDD(rdd => rdd
-        .map(sr => VisitorByProduct(sr._1._1, sr._1._2, sr._2.approximateSize.estimate)).toDF
-        .registerTempTable("VisitorsByProduct"))
+      .map(sr => VisitorByProduct(sr._1._1, sr._1._2, sr._2.approximateSize.estimate)).toDF
+      .registerTempTable("VisitorsByProduct"))
 
 
     //statefulVisitorsByProduct.print(10)
