@@ -9,18 +9,20 @@ import org.apache.spark.{SparkConf, SparkContext}
   * Created by Mihai.Petrutiu on 2/6/2017.
   */
 object SparkUtils {
-  val IsDebug = Settings.BatchJob.isDebug
+  val batchJob = Settings.BatchJob
+  val IsDebug = batchJob.isDebug
   var checkpointDirectory = ""
 
   def getSparkContext(appName: String): SparkContext =  {
     val conf = new SparkConf()
       .setAppName(appName)
+      .set("spark.casandra.connection.host",batchJob.casandraHost)
 
     //If we are running from IDE
     if(IsDebug) {
-      System.setProperty("hadoop.home.dir", Settings.BatchJob.hadoopHomeDir)
-      conf.setMaster(Settings.BatchJob.sparkMaster)
-      checkpointDirectory = Settings.BatchJob.checkpointDirectory
+      System.setProperty("hadoop.home.dir", batchJob.hadoopHomeDir)
+      conf.setMaster(batchJob.sparkMaster)
+      checkpointDirectory = batchJob.checkpointDirectory
     }
     else {}
 
@@ -31,7 +33,7 @@ object SparkUtils {
 
   def getSQLContext(sc: SparkContext): SQLContext = {
     val sqlContext = SQLContext.getOrCreate(sc)
-    sc.setCheckpointDir(Settings.BatchJob.checkpointDirectory)
+    sc.setCheckpointDir(batchJob.checkpointDirectory)
     sqlContext
   }
 

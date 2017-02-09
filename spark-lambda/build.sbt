@@ -29,6 +29,7 @@ val provided = "compile"//"provided"
 // -----------------------------
 
 mainClass in Compile := Some("streaming.StreamingJob")
+//mainClass in Compile := Some("batch1.BatchJob")
 jarName in assembly := "spark-lambda.jar"
 
 mergeStrategy in assembly := {

@@ -12,6 +12,8 @@ import config.Settings
 import domain._
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.functions._
+import com.datastax.spark.connector._
+import com.datastax.spark.connector.streaming._
 import utils.SparkUtils
 
 
@@ -46,6 +48,7 @@ object StreamingJob {
 
     var fromOffsets: Map[TopicAndPartition, Long] = Map()
     try {
+      println(s"Read parquet at $hdfsPath")
       val hdfsData = sqlContext.read.parquet(hdfsPath)
 
       fromOffsets = hdfsData
@@ -56,7 +59,10 @@ object StreamingJob {
           row.getAs[String](Activity.untilOffset).toLong + 1)
       }.toMap
     } catch {
-      case e: Exception => e.printStackTrace()
+      case e: Throwable =>
+        println("Log exception from catch:")
+        e.printStackTrace()
+
     }
 
     val kafkaDirectStream = fromOffsets.isEmpty match {
@@ -68,7 +74,7 @@ object StreamingJob {
       case false =>
         println("With previous results")
         KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder, (String, String)](
-          ssc, kafkaDirectParams, fromOffsets, { mmd : MessageAndMetadata[String, String] => (mmd.key(), mmd.message()) }
+          ssc, kafkaDirectParams, fromOffsets, { mmd: MessageAndMetadata[String, String] => (mmd.key(), mmd.message()) }
         )
     }
 
@@ -113,8 +119,8 @@ object StreamingJob {
       (x, y) => x,
       Seconds(30 / batchDurationInSeconds * batchDurationInSeconds)
     )
-      .foreachRDD(rdd => rdd.map(sr => ActivityByProduct(sr._1._1, sr._1._2, sr._2._1, sr._2._2, sr._2._3))
-        .toDF().registerTempTable("ActivityByProduct"))
+      .map(sr => ActivityByProduct(sr._1._1, sr._1._2, sr._2._1, sr._2._2, sr._2._3))
+      .saveToCassandra("lambda", "stream_activity_by_product")
 
 
     //unique visitors by product
@@ -135,10 +141,9 @@ object StreamingJob {
         (a, b) => b,
         (x, y) => x,
         Seconds(30 / batchDurationInSeconds * batchDurationInSeconds)
-      ) // only save or expose the snapshot every x seconds - 28
-      .foreachRDD(rdd => rdd
-      .map(sr => VisitorByProduct(sr._1._1, sr._1._2, sr._2.approximateSize.estimate)).toDF
-      .registerTempTable("VisitorsByProduct"))
+      )
+      .map(sr => VisitorByProduct(sr._1._1, sr._1._2, sr._2.approximateSize.estimate))
+      .saveToCassandra("lambda", "stream_visitors_by_product")
 
 
     //statefulVisitorsByProduct.print(10)

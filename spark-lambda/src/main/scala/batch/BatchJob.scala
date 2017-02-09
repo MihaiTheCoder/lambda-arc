@@ -1,4 +1,4 @@
-package batch
+package batch1
 
 import java.lang.management.ManagementFactory
 
@@ -39,6 +39,14 @@ object BatchJob {
         |FROM activity GROUP BY product, timestamp_hour
       """.stripMargin)
 
+
+    visitorByProduct
+      .write
+      .format("org.apache.spark.sql.cassandra")
+      .options(Map("keyspace"->"lambda","table"->"batch_visitors_by_product"))
+      .save()
+
+
     val activityByProduct = sqlContext.sql(
       """SELECT
                                             product,
@@ -49,7 +57,12 @@ object BatchJob {
                                             from activity
                                             group by product, timestamp_hour """).cache()
 
-    activityByProduct.write.partitionBy("timestamp_hour").mode(SaveMode.Append).parquet("hdfs://lambda-pluralsight:9000/lambda/batch1")
+    activityByProduct
+      .write
+      .format("org.apache.spark.sql.cassandra")
+      .options(Map("keyspace"->"lambda", "table"-> "batch_activity_by_product"))
+
+    //activityByProduct.write.partitionBy("timestamp_hour").mode(SaveMode.Append).parquet("hdfs://lambda-pluralsight:9000/lambda/batch1")
 
     visitorByProduct.foreach(println)
     activityByProduct.foreach(println)
