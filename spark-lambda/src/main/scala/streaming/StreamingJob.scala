@@ -1,6 +1,8 @@
 package streaming
 
 import _root_.kafka.serializer.{DefaultDecoder, StringDecoder}
+import _root_.kafka.common.TopicAndPartition
+import _root_.kafka.message.MessageAndMetadata
 import org.apache.spark.SparkContext
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.kafka.KafkaUtils
@@ -9,7 +11,7 @@ import com.twitter.algebird.HyperLogLogMonoid
 import config.Settings
 import domain._
 import org.apache.spark.sql.SaveMode
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.sql.functions._
 import utils.SparkUtils
 
 
@@ -18,6 +20,8 @@ import utils.SparkUtils
   */
 object StreamingJob {
   val batchDurationInSeconds = Settings.BatchJob.batchDuration.milliseconds / 1000
+  val hdfsPath = Settings.BatchJob.hdfsPath
+  val topic = Settings.WebLogGen.topic
 
   def main(args: Array[String]): Unit = {
     println(Settings.BatchJob.isDebug)
@@ -33,31 +37,52 @@ object StreamingJob {
     val sqlContext = SparkUtils.getSQLContext(sc)
     import sqlContext.implicits._
 
-    val kafkaParams = Map(
-      "zookeeper.connect" -> Settings.BatchJob.sparkZookeeperConnect,
-      "group.id" -> Settings.BatchJob.sparkGroupId,
-      "auto.offset.reset" -> "largest"
-    )
 
-    val kafkaDirectPrams = Map(
+    val kafkaDirectParams = Map(
       "metadata.broker.list" -> Settings.WebLogGen.bootstrapServersConfig,
       "group.id" -> Settings.BatchJob.sparkGroupId,
       "auto.offset.reset" -> "smallest"
     )
 
-    val kafkaDirectStream = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](
-      ssc, kafkaDirectPrams, Set(Settings.WebLogGen.topic)
-    )
+    var fromOffsets: Map[TopicAndPartition, Long] = Map()
+    try {
+      val hdfsData = sqlContext.read.parquet(hdfsPath)
+
+      fromOffsets = hdfsData
+        .groupBy(Activity.topic, Activity.kafkaPartition)
+        .agg(max(Activity.untilOffset).as(Activity.untilOffset))
+        .collect().map { row =>
+        (TopicAndPartition(row.getAs[String](Activity.topic), row.getAs[Int](Activity.kafkaPartition)),
+          row.getAs[String](Activity.untilOffset).toLong + 1)
+      }.toMap
+    } catch {
+      case e: Exception => e.printStackTrace()
+    }
+
+    val kafkaDirectStream = fromOffsets.isEmpty match {
+      case true =>
+        println("No Previous result")
+        KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](
+          ssc, kafkaDirectParams, Set(topic)
+        )
+      case false =>
+        println("With previous results")
+        KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder, (String, String)](
+          ssc, kafkaDirectParams, fromOffsets, { mmd : MessageAndMetadata[String, String] => (mmd.key(), mmd.message()) }
+        )
+    }
 
     val activityStream = kafkaDirectStream.transform(input => stringRDDtoActivityRDD(input)).cache()
 
+
     activityStream.foreachRDD(rdd => {
       val activityDF = rdd.toDF().selectExpr(ActivityFactory.getActivityWithOffserRangeColumns: _*)
+
       activityDF
         .write
         .partitionBy(Activity.topic, Activity.kafkaPartition, Activity.timestamp_hour)
         .mode(SaveMode.Append)
-        .parquet(s"${Settings.BatchJob.hadoop}/webblogs-app1/")
+        .parquet(hdfsPath)
     })
 
     val activityStateSpec = StateSpec

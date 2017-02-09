@@ -15,7 +15,7 @@ package object functions {
       val or = offsetRanges(index)
       it.flatMap(kv => {
         val line = kv._2
-        ActivityFactory.getActivity(line)
+        ActivityFactory.getActivity(line, or)
       })
     })
   }

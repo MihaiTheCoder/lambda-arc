@@ -53,10 +53,10 @@ package object domain {
 
     def getActivity(line: String, offsetRange: OffsetRange): Option[Activity] = {
       val map = Map(
-        "topic" -> offsetRange.topic,
-        "kafkaPartition" -> offsetRange.partition.toString,
-        "fromOffset" -> offsetRange.fromOffset.toString,
-        "untilOffset" -> offsetRange.untilOffset.toString
+        Activity.topic -> offsetRange.topic,
+        Activity.kafkaPartition -> offsetRange.partition.toString,
+        Activity.fromOffset -> offsetRange.fromOffset.toString,
+        Activity.untilOffset -> offsetRange.untilOffset.toString
       )
 
       val activity = getActivity(line, map)
@@ -67,10 +67,10 @@ package object domain {
     def getActivityWithOffserRangeColumns: List[String] = {
       List(Activity.timestamp_hour, Activity.referrer, Activity.action, Activity.prevPage,
         Activity.page, Activity.visitor, Activity.product,
-        s"inputProps.topic as ${Activity.topic}",
-        s"inputProps.kafkaPartition as ${Activity.kafkaPartition}",
-        s"inputProps.fromOffset as ${Activity.fromOffset}",
-        s"inputProps.untilOffset as ${Activity.untilOffset}")
+        s"inputProps.${Activity.topic} as ${Activity.topic}",
+        s"inputProps.${Activity.kafkaPartition} as ${Activity.kafkaPartition}",
+        s"inputProps.${Activity.fromOffset} as ${Activity.fromOffset}",
+        s"inputProps.${Activity.untilOffset} as ${Activity.untilOffset}")
     }
   }
 
